@@ -72,7 +72,8 @@ var CustomImportScript = (() => {
     const logoLink = footer.querySelector(".mega-footer__logo-link");
     const logoImg = logoLink && logoLink.querySelector("img");
     if (logoImg) {
-      nodes.push(para(document, link(document, logoLink.getAttribute("href"), base, img(document, logoImg.getAttribute("src"), logoImg.getAttribute("alt") || "Vhi logo", "vhi-logo-footer.svg"))));
+      nodes.push(para(document, img(document, logoImg.getAttribute("src"), logoImg.getAttribute("alt") || "Vhi logo", "vhi-logo-footer.svg")));
+      nodes.push(para(document, link(document, logoLink.getAttribute("href"), base, "Home page")));
     }
     return nodes;
   }

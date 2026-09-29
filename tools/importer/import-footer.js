@@ -5,7 +5,7 @@
  * Import script: vhi.ie global footer -> /footer fragment.
  *
  * Output structure (flat, one top-level <div> per section, separated by <hr>):
- *   1. brand         <p><a><img logo></a></p>
+ *   1. brand         <p><img logo></p><p><a>Home page</a></p>
  *   2..n columns     <p><strong>Title</strong></p> <ul><li><a>link</a></li>…</ul>
  *                    (connect column: social <ul> of image links, CTA <p><a>, phone <p><a tel:>,
  *                     then a second part <p><strong>Download the Vhi App</strong></p><p><a><img></a>…</p>)
@@ -73,7 +73,10 @@ function buildBrand(document, footer, base) {
   const logoLink = footer.querySelector('.mega-footer__logo-link');
   const logoImg = logoLink && logoLink.querySelector('img');
   if (logoImg) {
-    nodes.push(para(document, link(document, logoLink.getAttribute('href'), base, img(document, logoImg.getAttribute('src'), logoImg.getAttribute('alt') || 'Vhi logo', 'vhi-logo-footer.svg'))));
+    // image and home link as separate paragraphs: a linked image does not survive
+    // conversion to Universal Editor components (it becomes an empty button)
+    nodes.push(para(document, img(document, logoImg.getAttribute('src'), logoImg.getAttribute('alt') || 'Vhi logo', 'vhi-logo-footer.svg')));
+    nodes.push(para(document, link(document, logoLink.getAttribute('href'), base, 'Home page')));
   }
   return nodes;
 }

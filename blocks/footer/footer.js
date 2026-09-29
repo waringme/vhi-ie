@@ -24,8 +24,10 @@ function el(tag, className, ...children) {
   return node;
 }
 
-const isTitle = (node) => node.tagName === 'P' && node.children.length === 1
-  && node.firstElementChild.tagName === 'STRONG' && !node.querySelector('a');
+// titles are bold text, either wrapped in a paragraph or (Universal Editor output) bare
+const isTitle = (node) => (node.tagName === 'STRONG'
+  || (node.tagName === 'P' && node.children.length === 1 && node.firstElementChild.tagName === 'STRONG'))
+  && !node.querySelector('a');
 const imageOnly = (a) => !!a.querySelector('img') && !a.textContent.trim();
 
 function lazyImages(root) {
@@ -77,6 +79,21 @@ function buildColumn(section) {
 }
 
 /**
+ * Brand logo link: the logo may be authored inside the link or as a separate image
+ * followed by a text link (Universal Editor output).
+ */
+function buildBrandLink(section) {
+  const logo = section.querySelector('picture') || section.querySelector('img');
+  const link = section.querySelector('a');
+  if (!link) return logo;
+  const label = link.textContent.trim() || 'Home page';
+  if (!link.contains(logo)) link.replaceChildren(logo);
+  link.className = '';
+  link.setAttribute('aria-label', label);
+  return link;
+}
+
+/**
  * loads and decorates the footer
  * @param {Element} block The footer block element
  */
@@ -91,8 +108,8 @@ export default async function decorate(block) {
     const links = [...section.querySelectorAll('a')];
     if (first && isTitle(first)) {
       columns.append(buildColumn(section));
-    } else if (links.length === 1 && imageOnly(links[0])) {
-      inner.append(el('div', 'footer-brand', links[0]));
+    } else if (section.querySelector('img') && links.length <= 1 && !section.querySelector('ul')) {
+      inner.append(el('div', 'footer-brand', buildBrandLink(section)));
     } else if (section.querySelector('ul')) {
       const list = section.querySelector('ul');
       list.className = 'footer-bottom-links';

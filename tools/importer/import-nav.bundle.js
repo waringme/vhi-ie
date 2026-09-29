@@ -60,10 +60,8 @@ var CustomImportScript = (() => {
     const logoLink = header.querySelector(".mega-header__top-panel-logo");
     const logoImg = logoLink && logoLink.querySelector("img");
     if (logoLink && logoImg) {
-      const a = document.createElement("a");
-      a.href = absolute(logoLink.getAttribute("href"), base);
-      a.append(img(document, logoImg.getAttribute("src"), "Vhi"));
-      section.append(para(document, a));
+      section.append(para(document, img(document, logoImg.getAttribute("src"), "Vhi")));
+      section.append(para(document, link(document, logoLink.getAttribute("href"), "Home page", base)));
     }
     return section;
   }

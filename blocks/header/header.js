@@ -44,7 +44,12 @@ function buildBrand(section) {
   const brand = el('div', 'nav-brand');
   const link = section.querySelector('a');
   if (link) {
-    link.setAttribute('aria-label', 'Home page');
+    // logo may be authored inside the link or as a separate image before a text link
+    const logo = section.querySelector('picture') || section.querySelector('img');
+    const label = textOf(link) || 'Home page';
+    if (logo && !link.contains(logo)) link.replaceChildren(logo);
+    link.className = '';
+    link.setAttribute('aria-label', label);
     brand.append(link);
   }
   return brand;
@@ -104,7 +109,7 @@ function buildCard(nodes) {
     } else if (a) {
       a.className = 'nav-card-link';
       content.append(a);
-    } else if (node.querySelector('strong')) {
+    } else if (node.matches('strong') || node.querySelector('strong')) {
       content.append(el('p', 'nav-card-title', textOf(node)));
     } else {
       content.append(el('p', 'nav-card-desc', textOf(node)));

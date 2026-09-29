@@ -1,0 +1,18 @@
+{
+  "sites": {
+    "vhi-ie": {
+      "previewOrg": "waringme",
+      "previewSite": "vhi-ie",
+      "contentHostUrl": "author-p147324-e2050468.adobeaemcloud.com",
+      "aemSitePath": "/content/vhi-ie",
+      "aemAssetsFolderPath": "/content/dam/vhi-ie",
+      "aemSiteName": "vhi-ie",
+      "aemSiteTitle": "vhi-ie",
+      "libraryUrl": "https://main--sta-xwalk-boilerplate--aemysites.aem.page/tools/sidekick/library.json"
+    }
+  },
+  "features": [
+    "site-planning"
+  ],
+  "type": "xwalk"
+}

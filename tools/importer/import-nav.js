@@ -5,7 +5,7 @@
  * Import script: vhi.ie global header -> /nav fragment.
  *
  * Output structure (flat, one top-level <div> per section):
- *   1. brand     <p><a><img logo></a></p>
+ *   1. brand     <p><img logo></p><p><a>Home page</a></p>
  *   2. tools     <ul><li><a>Search</a></li><li><a>Contact Us</a></li><li><a>Login</a></li></ul>
  *   3..n panels  <p><strong>Trigger</strong></p>
  *                [<p>Subcategory</p>] <ul><li><img icon> <a>Title</a> Description</li></ul> ...
@@ -60,10 +60,10 @@ function buildBrand(document, header, base) {
   const logoLink = header.querySelector('.mega-header__top-panel-logo');
   const logoImg = logoLink && logoLink.querySelector('img');
   if (logoLink && logoImg) {
-    const a = document.createElement('a');
-    a.href = absolute(logoLink.getAttribute('href'), base);
-    a.append(img(document, logoImg.getAttribute('src'), 'Vhi'));
-    section.append(para(document, a));
+    // image and home link as separate paragraphs: a linked image does not survive
+    // conversion to Universal Editor components (it becomes an empty button)
+    section.append(para(document, img(document, logoImg.getAttribute('src'), 'Vhi')));
+    section.append(para(document, link(document, logoLink.getAttribute('href'), 'Home page', base)));
   }
   return section;
 }

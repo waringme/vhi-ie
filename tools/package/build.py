@@ -12,7 +12,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-VERSION = '1.3.0'
+VERSION = '1.4.0'
 ROOT = Path(__file__).resolve().parents[2]
 BUILDERS = [ROOT / 'tools/site-package/build.py', ROOT / 'tools/cf-package/build.py']
 DIST = Path(__file__).resolve().parent / 'dist'

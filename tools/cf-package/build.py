@@ -35,12 +35,20 @@ FRAGMENT_UUID = str(uuid.uuid5(uuid.NAMESPACE_URL, f'aem:{FRAGMENT_PATH}'))
 BUILT = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
 AUTHOR = 'admin'
 
+# GraphQL: /content/cq:graphql/vhi-ie/endpoint + persisted query vhi-ie/press-release-by-path
+GRAPHQL_ENDPOINT = '/content/cq:graphql/vhi-ie'
+PERSISTED_QUERIES = f'{CONF}/settings/graphql/persistentQueries'
+QUERY_NAME = 'press-release-by-path'
+QUERY_FILE = Path(__file__).resolve().parent / 'graphql' / f'{QUERY_NAME}.graphql'
+
 NS = ('xmlns:sling="http://sling.apache.org/jcr/sling/1.0" '
       'xmlns:cq="http://www.day.com/jcr/cq/1.0" '
       'xmlns:jcr="http://www.jcp.org/jcr/1.0" '
       'xmlns:nt="http://www.jcp.org/jcr/nt/1.0" '
       'xmlns:dam="http://www.day.com/dam/1.0" '
-      'xmlns:dc="http://purl.org/dc/elements/1.1/"')
+      'xmlns:dc="http://purl.org/dc/elements/1.1/" '
+      'xmlns:mix="http://www.jcp.org/jcr/mix/1.0" '
+      'xmlns:granite="http://www.adobe.com/jcr/granite/1.0"')
 
 # (name, label, metaType, required, description)
 FIELDS = [
@@ -170,21 +178,29 @@ def field_xml(index, name, label, meta, required, description):
               f'listOrder="{index}" metaType="{meta}" name="{name}" renderReadOnly="false" showEmptyInReadOnly="true"')
     if required:
         common += ' required="on"'
+    data = False
     if meta == 'text-single':
         specific = ('sling:resourceType="granite/ui/components/coral/foundation/form/textfield" '
-                    'maxlength="255" valueType="string"')
+                    'maxlength="255" translatable="true" valueType="string"')
+        data = True
     elif meta == 'text-multi':
         specific = (f'sling:resourceType="dam/cfm/admin/components/authoring/contenteditor/multieditor" '
-                    f'cfm-element="{name}" default-mime-type="text/html" valueType="string"')
+                    f'cfm-element="{attr(label)}" checked="false" default-mime-type="text/html" '
+                    f'translatable="true" valueType="string"')
     elif meta == 'reference':
         specific = ('sling:resourceType="dam/cfm/models/editor/components/contentreference" '
                     'filter="hierarchy" nameSuffix="contentReference" rootPath="/content/dam/vhi-ie" '
                     'showThumbnail="true" validation="cfm.validation.contenttype.image" valueType="string"')
+        data = True
     else:  # date
         specific = ('sling:resourceType="granite/ui/components/coral/foundation/form/datepicker" '
                     'displayedFormat="YYYY-MM-DD" type="date" valueFormat="YYYY-MM-DD[T]HH:mm:ss.000Z" '
                     'valueType="calendar/date"')
     node = f'_x0031_7590000000{index:02d}'
+    if data:
+        return (f'                        <{node} {common} {specific}>\n'
+                f'                            <granite:data jcr:primaryType="nt:unstructured"/>\n'
+                f'                        </{node}>')
     return f'                        <{node} {common} {specific}/>'
 
 
@@ -232,21 +248,25 @@ def model_xml():
 
 
 def fragment_xml(article):
-    props = []
+    props = ['jcr:mixinTypes="[cq:Taggable,dam:cfVariationNode]"']
+    modified = f'{{Date}}{BUILT}'
     for name, _label, meta, _req, _desc in FIELDS:
         value = article.get(name)
         if meta == 'date':
-            if value:
-                props.append(f'{name}="{{Date}}{value.strftime("%Y-%m-%dT00:00:00.000Z")}"')
-            continue
-        if meta == 'reference':
+            if not value:
+                continue
+            props.append(f'{name}="{{Date}}{value.strftime("%Y-%m-%dT00:00:00.000Z")}"')
+        elif meta == 'reference':
             # asset path, e.g. /content/dam/vhi-ie/images/blue-september.jpg; omitted until an author
             # picks one (an empty string is not a valid reference)
-            if value:
-                props.append(f'{name}="{attr(value)}"')
-            continue
-        props.append(f'{name}="{attr(value or "")}"')
-        props.append(f'{name}_x0040_ContentType="{"text/html" if meta == "text-multi" else "text/plain"}"')
+            if not value:
+                continue
+            props.append(f'{name}="{attr(value)}"')
+        else:
+            props.append(f'{name}="{attr(value or "")}"')
+            if meta == 'text-multi':
+                props.append(f'{name}_x0040_ContentType="text/html"')
+        props.append(f'{name}_x0040_LastModified="{modified}"')
     master = '\n                '.join(props)
     title = attr(article['title'])
     return f'''<?xml version="1.0" encoding="UTF-8"?>
@@ -260,6 +280,7 @@ def fragment_xml(article):
         contentFragment="{{Boolean}}true"
         jcr:lastModified="{{Date}}{BUILT}"
         jcr:lastModifiedBy="{AUTHOR}"
+        lastFragmentSave="{{Date}}{BUILT}"
         jcr:primaryType="dam:AssetContent"
         jcr:title="{title}"
         jcr:description="Vhi press release, {article['publicationDate'].strftime('%d %B %Y') if article['publicationDate'] else ''}">
@@ -271,6 +292,7 @@ def fragment_xml(article):
                 {master}/>
         </data>
         <metadata
+            jcr:mixinTypes="[cq:Taggable]"
             jcr:primaryType="nt:unstructured"
             dc:title="{title}"/>
         <related jcr:primaryType="nt:unstructured"/>
@@ -305,11 +327,54 @@ def folder_xml(title, conf=None, allowed_models=()):
 '''
 
 
+def endpoint_folder_xml():
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root {NS}
+    jcr:primaryType="sling:Folder"/>
+'''
+
+
+def endpoint_xml():
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root {NS}
+    jcr:primaryType="nt:unstructured"
+    jcr:title="vhi-ie Endpoint"
+    sling:resourceType="graphql/sites/components/endpoint"/>
+'''
+
+
+def persisted_query_xml():
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root {NS}
+    jcr:created="{{Date}}{BUILT}"
+    jcr:primaryType="nt:unstructured"
+    sling:resourceType="graphql/persistent/query">
+    <jcr:content
+        jcr:data="{{Binary}}"
+        jcr:lastModified="{{Date}}{BUILT}"
+        jcr:mimeType="text/html"
+        jcr:primaryType="nt:unstructured"
+        sling:resourceType="graphql/persistent/query/content"/>
+</jcr:root>
+'''
+
+
+def page_with_content_xml():
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root {NS}
+    jcr:primaryType="cq:Page">
+    <jcr:content jcr:primaryType="nt:unstructured"/>
+</jcr:root>
+'''
+
+
 FILTER_XML = f'''<?xml version="1.0" encoding="UTF-8"?>
 <workspaceFilter version="1.0">
     <filter root="{MODEL_PATH}"/>
     <filter root="{FRAGMENT_FOLDER}/jcr:content"/>
     <filter root="{FRAGMENT_FOLDER}/{FRAGMENT_NAME}"/>
+    <filter root="{GRAPHQL_ENDPOINT}"/>
+    <filter root="{PERSISTED_QUERIES}/{QUERY_NAME}"/>
 </workspaceFilter>
 '''
 
@@ -318,8 +383,8 @@ PROPERTIES_XML = '''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <properties>
 <entry key="name">vhi-ie-press-release-cf</entry>
 <entry key="group">vhi-ie</entry>
-<entry key="version">1.3.0</entry>
-<entry key="description">Press Release content fragment model + Blue September 2015 press release fragment</entry>
+<entry key="version">1.4.0</entry>
+<entry key="description">Press Release content fragment model, Blue September 2015 fragment, vhi-ie GraphQL endpoint and press-release-by-path persisted query</entry>
 <entry key="requiresRoot">false</entry>
 <entry key="packageType">content</entry>
 </properties>
@@ -338,9 +403,17 @@ def main():
         f'jcr_root{MODEL_PATH}/.content.xml': model_xml(),
         f'jcr_root{FRAGMENT_FOLDER}/.content.xml': folder_xml('Fragments', CONF, [MODEL_PATH]),
         f'jcr_root{FRAGMENT_FOLDER}/{FRAGMENT_NAME}/.content.xml': fragment_xml(article),
+        # GraphQL endpoint (/content/cq:graphql/vhi-ie/endpoint.json)
+        'jcr_root/content/_cq_graphql/vhi-ie/.content.xml': endpoint_folder_xml(),
+        'jcr_root/content/_cq_graphql/vhi-ie/endpoint/.content.xml': endpoint_xml(),
+        # persisted queries (graphql + persistentQueries folders created only if missing)
+        'jcr_root/conf/vhi-ie/settings/graphql/.content.xml': page_with_content_xml(),
+        'jcr_root/conf/vhi-ie/settings/graphql/persistentQueries/.content.xml': page_with_content_xml(),
+        f'jcr_root{PERSISTED_QUERIES}/{QUERY_NAME}/.content.xml': persisted_query_xml(),
+        f'jcr_root{PERSISTED_QUERIES}/{QUERY_NAME}/_jcr_content/_jcr_data.binary': QUERY_FILE.read_text(encoding='utf-8'),
     }
     DIST.mkdir(parents=True, exist_ok=True)
-    out = DIST / 'vhi-ie-press-release-cf-1.3.0.zip'
+    out = DIST / 'vhi-ie-press-release-cf-1.4.0.zip'
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         for name, body in files.items():
             z.writestr(name, body)

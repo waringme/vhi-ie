@@ -1,7 +1,9 @@
 import { getMetadata } from '../../scripts/aem.js';
 
-// AEM publish tier serving the content fragment JSON (override with the aem-publish-host metadata)
+// AEM publish tier serving the GraphQL persisted query (override: aem-publish-host metadata)
 const DEFAULT_PUBLISH_HOST = 'https://publish-p147324-e2050468.adobeaemcloud.com';
+// persisted query {configuration}/{query name}, see tools/cf-package/graphql/
+const PERSISTED_QUERY = 'vhi-ie/press-release-by-path';
 const DAM_ROOT = '/content/dam';
 
 /**
@@ -26,16 +28,37 @@ function fragmentPath(block) {
   return path.startsWith(DAM_ROOT) ? path : null;
 }
 
+/**
+ * Loads a press release fragment through the GraphQL persisted query and flattens it to
+ * field values (rich text as HTML, image as a URL).
+ */
 async function fetchFragment(path) {
-  const url = `${aemHost()}/api/assets${path.slice(DAM_ROOT.length)}.json`;
-  const resp = await fetch(url, { credentials: aemHost() ? 'omit' : 'same-origin' });
+  const host = aemHost();
+  const url = `${host}/graphql/execute.json/${PERSISTED_QUERY};path=${encodeURIComponent(path)}`;
+  const resp = await fetch(url, { credentials: host ? 'omit' : 'same-origin' });
   if (!resp.ok) throw new Error(`${resp.status} ${url}`);
   const json = await resp.json().catch(() => {
     throw new Error(`no JSON from ${url}`);
   });
-  if (!json?.properties?.elements) throw new Error(`${url} is not a content fragment`);
-  const elements = json?.properties?.elements || {};
-  return Object.fromEntries(Object.entries(elements).map(([name, element]) => [name, element?.value ?? '']));
+  const item = json?.data?.pressReleaseByPath?.item;
+  if (!item) {
+    const reason = json?.errors?.[0]?.message || 'content fragment not found';
+    throw new Error(`${reason} (${url})`);
+  }
+  const html = (value) => value?.html ?? '';
+  // GraphQL ImageRef system fields
+  const { _path: imagePath, _authorUrl: authorUrl, _publishUrl: publishUrl } = item.image || {};
+  return {
+    title: item.title,
+    publicationDate: item.publicationDate,
+    byline: item.byline,
+    image: (host ? publishUrl : authorUrl) || imagePath,
+    imageAlt: item.imageAlt,
+    introduction: html(item.introduction),
+    keyPoints: html(item.keyPoints),
+    body: html(item.body),
+    notesToEditors: html(item.notesToEditors),
+  };
 }
 
 function el(tag, className, ...children) {

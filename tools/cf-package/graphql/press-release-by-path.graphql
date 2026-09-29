@@ -1,0 +1,39 @@
+# Get a press release content fragment by path.
+#
+# Persisted as vhi-ie/press-release-by-path; execute with
+#   GET /graphql/execute.json/vhi-ie/press-release-by-path;path=/content/dam/vhi-ie/fragments/blue-september-2015
+#
+# Required query variables:
+# - { "path": "/content/dam/vhi-ie/fragments/blue-september-2015" }
+
+query getPressReleaseByPath($path: String!) {
+  pressReleaseByPath(_path: $path) {
+    item {
+      _path
+      title
+      publicationDate
+      byline
+      image {
+        ... on ImageRef {
+          _path
+          _authorUrl
+          _publishUrl
+        }
+      }
+      imageAlt
+      introduction {
+        html
+      }
+      keyPoints {
+        html
+      }
+      body {
+        html
+      }
+      notesToEditors {
+        html
+      }
+      sourceUrl
+    }
+  }
+}

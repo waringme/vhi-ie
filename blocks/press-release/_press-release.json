@@ -1,0 +1,35 @@
+{
+  "definitions": [
+    {
+      "title": "Press Release",
+      "id": "press-release",
+      "plugins": {
+        "xwalk": {
+          "page": {
+            "resourceType": "core/franklin/components/block/v1/block",
+            "template": {
+              "name": "Press Release",
+              "model": "press-release"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "models": [
+    {
+      "id": "press-release",
+      "fields": [
+        {
+          "component": "aem-content-fragment",
+          "valueType": "string",
+          "name": "fragment",
+          "label": "Press release content fragment",
+          "description": "Press Release fragment to render, e.g. /content/dam/vhi-ie/fragments/blue-september-2015",
+          "rootPath": "/content/dam/vhi-ie/fragments"
+        }
+      ]
+    }
+  ],
+  "filters": []
+}

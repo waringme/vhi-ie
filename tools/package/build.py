@@ -12,7 +12,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 ROOT = Path(__file__).resolve().parents[2]
 BUILDERS = [ROOT / 'tools/site-package/build.py', ROOT / 'tools/cf-package/build.py']
 DIST = Path(__file__).resolve().parent / 'dist'
@@ -48,7 +48,7 @@ def main():
 <entry key="name">vhi-ie-content</entry>
 <entry key="group">vhi-ie</entry>
 <entry key="version">{VERSION}</entry>
-<entry key="description">Blue September 2015 press release page, nav, footer, their images, and the Press Release content fragment model + fragment</entry>
+<entry key="description">Blue September 2015 press release page (driven by its content fragment via the Press Release block), nav, footer, their images, and the Press Release content fragment model + fragment</entry>
 <entry key="requiresRoot">false</entry>
 <entry key="packageType">content</entry>
 </properties>

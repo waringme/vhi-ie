@@ -14,7 +14,7 @@ import re
 import zipfile
 from pathlib import Path
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 ROOT = Path(__file__).resolve().parents[2]
 JCR = ROOT / 'migration-work/jcr-content'
 IMAGES = ROOT / 'content/images'
@@ -23,12 +23,13 @@ DIST = Path(__file__).resolve().parent / 'dist'
 SITE = '/content/vhi-ie'
 DAM = '/content/dam/vhi-ie'
 
-# (source xml relative to JCR, repository path, page title)
+# (source xml relative to JCR, repository path, page title, content fragment driving the page)
 PAGES = [
-    ('nav.xml', f'{SITE}/nav', 'Nav'),
-    ('footer.xml', f'{SITE}/footer', 'Footer'),
+    ('nav.xml', f'{SITE}/nav', 'Nav', None),
+    ('footer.xml', f'{SITE}/footer', 'Footer', None),
     ('about/media-releases-and-publications/2015/11.xml',
-     f'{SITE}/about/media-releases-and-publications/2015/11', None),
+     f'{SITE}/about/media-releases-and-publications/2015/11', None,
+     f'{DAM}/fragments/blue-september-2015'),
 ]
 # intermediate pages, created only if they do not exist yet (outside the filter roots)
 ANCESTORS = [
@@ -62,6 +63,22 @@ def rewrite(xml, title):
     if title and 'jcr:title=' not in xml.split('<root', 1)[0]:
         xml = xml.replace('<jcr:content ', f'<jcr:content jcr:title="{html.escape(title, quote=True)}" ', 1)
     return xml
+
+
+def fragment_driven(xml, fragment):
+    """Replaces the page body with a single Press Release block that renders the fragment."""
+    root = (f'<root jcr:primaryType="nt:unstructured" sling:resourceType="core/franklin/components/root/v1/root">\n'
+            f'      <section sling:resourceType="core/franklin/components/section/v1/section" '
+            f'jcr:primaryType="nt:unstructured" model="section" modelFields="[name,style]">\n'
+            f'        <block sling:resourceType="core/franklin/components/block/v1/block" '
+            f'jcr:primaryType="nt:unstructured" name="Press Release" model="press-release" '
+            f'fragment="{fragment}"/>\n'
+            f'      </section>\n'
+            f'    </root>')
+    new, count = re.subn(r'<root[\s\S]*</root>', root, xml, count=1)
+    if not count:
+        raise SystemExit('page has no <root> node')
+    return new
 
 
 def ancestor_xml(title):
@@ -109,10 +126,13 @@ def main():
     filters = []
     referenced = set()
 
-    for src, path, title in PAGES:
+    for src, path, title, fragment in PAGES:
         xml = (JCR / src).read_text(encoding='utf-8')
         xml = rewrite(xml, title or page_title_from_content(xml))
-        referenced.update(re.findall(rf'{re.escape(DAM)}/([a-z]+/[^"&]+)', xml))
+        if fragment:
+            xml = fragment_driven(xml, fragment)
+        folders = '|'.join(IMAGE_FOLDERS)
+        referenced.update(re.findall(rf'{re.escape(DAM)}/((?:{folders})/[^"&]+)', xml))
         files[f'jcr_root{path}/.content.xml'] = xml
         filters.append(path)
 
@@ -150,7 +170,7 @@ def main():
 <entry key="name">vhi-ie-site-content</entry>
 <entry key="group">vhi-ie</entry>
 <entry key="version">{VERSION}</entry>
-<entry key="description">Blue September 2015 press release page, nav and footer (+ nav/footer images)</entry>
+<entry key="description">Blue September 2015 press release page (content fragment driven), nav and footer (+ nav/footer images)</entry>
 <entry key="requiresRoot">false</entry>
 <entry key="packageType">content</entry>
 </properties>

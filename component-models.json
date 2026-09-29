@@ -214,5 +214,18 @@
         "valueType": "string"
       }
     ]
+  },
+  {
+    "id": "press-release",
+    "fields": [
+      {
+        "component": "aem-content-fragment",
+        "valueType": "string",
+        "name": "fragment",
+        "label": "Press release content fragment",
+        "description": "Press Release fragment to render, e.g. /content/dam/vhi-ie/fragments/blue-september-2015",
+        "rootPath": "/content/dam/vhi-ie/fragments"
+      }
+    ]
   }
 ]

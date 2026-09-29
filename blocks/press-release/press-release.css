@@ -1,0 +1,30 @@
+.press-release {
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+}
+
+.press-release .press-release-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--border-radius);
+}
+
+.press-release .press-release-notes > p:first-child {
+  margin-top: 16px;
+}
+
+.press-release .press-release-byline {
+  margin-bottom: 0;
+}
+
+.press-release .press-release-date {
+  margin-top: 0;
+}
+
+.press-release .press-release-message {
+  padding: 16px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--border-radius);
+  color: var(--text-secondary-color);
+}

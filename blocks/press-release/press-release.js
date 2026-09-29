@@ -5,6 +5,8 @@ const DEFAULT_PUBLISH_HOST = 'https://publish-p147324-e2050468.adobeaemcloud.com
 // persisted query {configuration}/{query name}, see tools/cf-package/graphql/
 const PERSISTED_QUERY = 'vhi-ie/press-release-by-path';
 const DAM_ROOT = '/content/dam';
+// how long visitors may see a cached fragment response (ms)
+const CACHE_WINDOW = 5 * 60 * 1000;
 
 /** True on AEM author / Universal Editor (pages served from the AEM host). */
 function isAuthor() {
@@ -43,9 +45,10 @@ async function fetchFragment(path, variation) {
   const host = aemHost();
   // AEM does not decode %2F in persisted query parameters: keep the slashes of the path
   const params = `;path=${encodeURI(path)};variation=${encodeURIComponent(variation)}`;
-  let url = `${host}/graphql/execute.json/${PERSISTED_QUERY}${params}`;
-  // always fetch the latest version while authoring
-  if (isAuthor()) url += `;ts=${Date.now()}`;
+  // cache-bust: every request while authoring, otherwise per time window so published changes
+  // show within minutes while the CDN can still cache the response
+  const ts = isAuthor() ? Date.now() : Math.floor(Date.now() / CACHE_WINDOW) * CACHE_WINDOW;
+  const url = `${host}/graphql/execute.json/${PERSISTED_QUERY}${params};ts=${ts}`;
   const resp = await fetch(url, { credentials: host ? 'omit' : 'same-origin' });
   if (!resp.ok) throw new Error(`${resp.status} ${url}`);
   const json = await resp.json().catch(() => {

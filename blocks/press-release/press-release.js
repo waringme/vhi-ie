@@ -6,35 +6,46 @@ const DEFAULT_PUBLISH_HOST = 'https://publish-p147324-e2050468.adobeaemcloud.com
 const PERSISTED_QUERY = 'vhi-ie/press-release-by-path';
 const DAM_ROOT = '/content/dam';
 
-/**
- * Base URL for AEM requests: same origin when running on AEM (author / Universal Editor),
- * otherwise the publish tier.
- */
+/** True on AEM author / Universal Editor (pages served from the AEM host). */
+function isAuthor() {
+  return window.location.hostname.endsWith('.adobeaemcloud.com');
+}
+
+/** Base URL for AEM requests: same origin on author, otherwise the publish tier. */
 function aemHost() {
-  if (window.location.hostname.endsWith('.adobeaemcloud.com')) return '';
+  if (isAuthor()) return '';
   return (getMetadata('aem-publish-host') || DEFAULT_PUBLISH_HOST).replace(/\/$/, '');
 }
 
 /**
- * Reads the fragment path authored in the block (a link or plain text).
+ * Reads the block fields: row 1 the fragment (link or text), row 2 the picked variation.
  * @param {Element} block
- * @returns {string|null} e.g. /content/dam/vhi-ie/fragments/blue-september-2015
+ * @returns {{path: string|null, variation: string}}
  */
-function fragmentPath(block) {
-  const link = block.querySelector('a');
-  const raw = link ? link.getAttribute('href') : block.textContent;
-  if (!raw) return null;
-  const path = new URL(raw.trim(), window.location.origin).pathname.replace(/\.[a-z]+$/, '');
-  return path.startsWith(DAM_ROOT) ? path : null;
+function readConfig(block) {
+  const [fragmentRow, variationRow] = [...block.children];
+  const link = fragmentRow?.querySelector('a');
+  const raw = (link ? link.getAttribute('href') : fragmentRow?.textContent)?.trim();
+  let path = null;
+  if (raw) {
+    path = new URL(raw, window.location.origin).pathname.replace(/\.[a-z]+$/, '');
+    if (!path.startsWith(DAM_ROOT)) path = null;
+  }
+  const variation = variationRow?.textContent.trim().toLowerCase().replace(/\s+/g, '_') || 'master';
+  return { path, variation };
 }
 
 /**
  * Loads a press release fragment through the GraphQL persisted query and flattens it to
  * field values (rich text as HTML, image as a URL).
  */
-async function fetchFragment(path) {
+async function fetchFragment(path, variation) {
   const host = aemHost();
-  const url = `${host}/graphql/execute.json/${PERSISTED_QUERY};path=${encodeURIComponent(path)}`;
+  // AEM does not decode %2F in persisted query parameters: keep the slashes of the path
+  const params = `;path=${encodeURI(path)};variation=${encodeURIComponent(variation)}`;
+  let url = `${host}/graphql/execute.json/${PERSISTED_QUERY}${params}`;
+  // always fetch the latest version while authoring
+  if (isAuthor()) url += `;ts=${Date.now()}`;
   const resp = await fetch(url, { credentials: host ? 'omit' : 'same-origin' });
   if (!resp.ok) throw new Error(`${resp.status} ${url}`);
   const json = await resp.json().catch(() => {
@@ -68,6 +79,19 @@ function el(tag, className, ...children) {
   return node;
 }
 
+/**
+ * Universal Editor instrumentation for a fragment field (author only), so the field can be
+ * edited in context.
+ */
+function instrument(node, prop, type, label) {
+  if (node && isAuthor()) {
+    node.dataset.aueProp = prop;
+    node.dataset.aueType = type;
+    node.dataset.aueLabel = label;
+  }
+  return node;
+}
+
 /** Rich text element value (HTML) as a section, or null when empty. */
 function richText(html, className) {
   if (!html || !String(html).trim()) return null;
@@ -92,26 +116,34 @@ function buildImage(src, alt) {
   img.src = src.startsWith('/') ? `${aemHost()}${src}` : src;
   img.alt = alt || '';
   img.loading = 'lazy';
-  return el('p', 'press-release-image', el('picture', null, img));
+  return el('p', 'press-release-image', instrument(el('picture', null, img), 'image', 'media', 'Image'));
 }
 
-function render(data) {
-  const notes = richText(data.notesToEditors, 'press-release-notes');
-  if (notes) {
-    notes.prepend(el('p', null, el('strong', null, 'Notes to editors:')));
-  }
-  return el(
+function render(data, path, variation) {
+  const notesBody = instrument(richText(data.notesToEditors), 'notesToEditors', 'richtext', 'Notes to Editors');
+  const notes = notesBody
+    ? el('div', 'press-release-notes', el('p', null, el('strong', null, 'Notes to editors:')), notesBody)
+    : null;
+  const article = el(
     'article',
     'press-release-article',
-    data.title ? el('h1', null, data.title) : null,
+    data.title ? instrument(el('h1', null, data.title), 'title', 'text', 'Title') : null,
     buildImage(data.image, data.imageAlt),
-    richText(data.introduction, 'press-release-intro'),
-    richText(data.keyPoints, 'press-release-key-points'),
-    richText(data.body, 'press-release-body'),
+    instrument(richText(data.introduction, 'press-release-intro'), 'introduction', 'richtext', 'Introduction'),
+    instrument(richText(data.keyPoints, 'press-release-key-points'), 'keyPoints', 'richtext', 'Key Points'),
+    instrument(richText(data.body, 'press-release-body'), 'body', 'richtext', 'Body'),
     notes,
-    data.byline ? el('p', 'press-release-byline', data.byline) : null,
+    data.byline ? instrument(el('p', 'press-release-byline', data.byline), 'byline', 'text', 'Byline') : null,
     data.publicationDate ? el('p', 'press-release-date', formatDate(data.publicationDate)) : null,
   );
+  if (isAuthor()) {
+    // the fragment variation as an editable resource in Universal Editor
+    article.dataset.aueResource = `urn:aemconnection:${path}/jcr:content/data/${variation}`;
+    article.dataset.aueType = 'reference';
+    article.dataset.aueFilter = 'cf';
+    article.dataset.aueLabel = `Press release (${variation})`;
+  }
+  return article;
 }
 
 /**
@@ -119,19 +151,19 @@ function render(data) {
  * @param {Element} block The block element
  */
 export default async function decorate(block) {
-  const path = fragmentPath(block);
+  const { path, variation } = readConfig(block);
   block.textContent = '';
   if (!path) {
     block.append(el('p', 'press-release-message', 'Select a press release content fragment.'));
     return;
   }
   try {
-    block.append(render(await fetchFragment(path)));
+    block.append(render(await fetchFragment(path, variation), path, variation));
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error('press-release: could not load content fragment', e);
     // authors (on AEM / Universal Editor) get the reason; site visitors a short notice
-    const detail = aemHost() ? '' : ` (${e.message})`;
+    const detail = isAuthor() ? ` (${e.message})` : '';
     block.append(el('p', 'press-release-message', `Could not load content fragment ${path}${detail}.`));
   }
 }

@@ -383,7 +383,7 @@ PROPERTIES_XML = '''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <properties>
 <entry key="name">vhi-ie-press-release-cf</entry>
 <entry key="group">vhi-ie</entry>
-<entry key="version">1.4.0</entry>
+<entry key="version">1.5.0</entry>
 <entry key="description">Press Release content fragment model, Blue September 2015 fragment, vhi-ie GraphQL endpoint and press-release-by-path persisted query</entry>
 <entry key="requiresRoot">false</entry>
 <entry key="packageType">content</entry>
@@ -413,7 +413,7 @@ def main():
         f'jcr_root{PERSISTED_QUERIES}/{QUERY_NAME}/_jcr_content/_jcr_data.binary': QUERY_FILE.read_text(encoding='utf-8'),
     }
     DIST.mkdir(parents=True, exist_ok=True)
-    out = DIST / 'vhi-ie-press-release-cf-1.4.0.zip'
+    out = DIST / 'vhi-ie-press-release-cf-1.5.0.zip'
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         for name, body in files.items():
             z.writestr(name, body)

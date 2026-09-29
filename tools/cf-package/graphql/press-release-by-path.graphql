@@ -2,12 +2,16 @@
 #
 # Persisted as vhi-ie/press-release-by-path; execute with
 #   GET /graphql/execute.json/vhi-ie/press-release-by-path;path=/content/dam/vhi-ie/fragments/blue-september-2015
+# (path is passed unencoded; add ;variation=<name> for a variation other than master)
 #
 # Required query variables:
 # - { "path": "/content/dam/vhi-ie/fragments/blue-september-2015" }
+#
+# Optional query variables:
+# - { "variation": "master" }
 
-query getPressReleaseByPath($path: String!) {
-  pressReleaseByPath(_path: $path) {
+query getPressReleaseByPath($path: String!, $variation: String = "master") {
+  pressReleaseByPath(_path: $path, variation: $variation) {
     item {
       _path
       title

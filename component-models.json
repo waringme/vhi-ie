@@ -224,7 +224,25 @@
         "name": "fragment",
         "label": "Press release content fragment",
         "description": "Press Release fragment to render, e.g. /content/dam/vhi-ie/fragments/blue-september-2015",
-        "rootPath": "/content/dam/vhi-ie/fragments"
+        "rootPath": "/content/dam/vhi-ie/fragments",
+        "required": true,
+        "variationName": "fragmentVariation"
+      },
+      {
+        "component": "text",
+        "valueType": "string",
+        "name": "fragmentVariation",
+        "label": "Selected variation",
+        "value": "",
+        "description": "Stored by the fragment picker; empty means master.",
+        "condition": {
+          "==": [
+            {
+              "var": "__alwaysFalse"
+            },
+            true
+          ]
+        }
       }
     ]
   }

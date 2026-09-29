@@ -14,7 +14,7 @@ import re
 import zipfile
 from pathlib import Path
 
-VERSION = '1.4.0'
+VERSION = '1.5.0'
 ROOT = Path(__file__).resolve().parents[2]
 JCR = ROOT / 'migration-work/jcr-content'
 IMAGES = ROOT / 'content/images'

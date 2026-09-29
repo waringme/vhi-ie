@@ -1,11 +1,16 @@
 /* eslint-disable */
 /* global WebImporter */
 
+// PARSER IMPORTS
+import pressReleaseParser from './parsers/press-release.js';
+
 // TRANSFORMER IMPORTS
 import vhiCleanupTransformer from './transformers/vhi-cleanup.js';
 
-// PARSER REGISTRY - press-release pages are default content only (no blocks)
-const parsers = {};
+// PARSER REGISTRY - press-release block (only for releases converted to content fragments)
+const parsers = {
+  'press-release': pressReleaseParser,
+};
 
 // PAGE TEMPLATE CONFIGURATION - Embedded from page-templates.json
 const PAGE_TEMPLATE = {
@@ -140,7 +145,14 @@ const PAGE_TEMPLATE = {
     "https://www1.vhi.ie/session-expired",
     "https://www1.vhi.ie/site-maintenance"
   ],
-  "blocks": [],
+  "blocks": [
+    {
+      "name": "press-release",
+      "instances": [
+        ".text-shelf__wrapper"
+      ]
+    }
+  ],
   "sections": [
     {
       "id": "rc2",
@@ -150,7 +162,9 @@ const PAGE_TEMPLATE = {
         "#components"
       ],
       "style": null,
-      "blocks": [],
+      "blocks": [
+        "press-release"
+      ],
       "defaultContent": [
         ".text-shelf__wrapper > h2.text-shelf__article-title",
         ".text-shelf__wrapper > div.text-shelf__content"

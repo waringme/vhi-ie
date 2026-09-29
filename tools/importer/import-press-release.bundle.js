@@ -41,6 +41,24 @@ var CustomImportScript = (() => {
     default: () => import_press_release_default
   });
 
+  // tools/importer/parsers/press-release.js
+  var FRAGMENTS = {
+    "/about/media-releases-and-publications/2015/11": "/content/dam/vhi-ie/fragments/blue-september-2015"
+  };
+  function parse(element, { document: document2, params }) {
+    const path = new URL(params.originalURL).pathname.replace(/\/$/, "").replace(/\.html?$/, "");
+    const fragment = FRAGMENTS[path];
+    if (!fragment) return;
+    const link = document2.createElement("a");
+    link.href = fragment;
+    link.textContent = fragment;
+    const cell = document2.createDocumentFragment();
+    cell.appendChild(document2.createComment(" field:fragment "));
+    cell.appendChild(link);
+    const block = WebImporter.Blocks.createBlock(document2, { name: "Press Release", cells: [[cell]] });
+    element.replaceWith(block);
+  }
+
   // tools/importer/transformers/vhi-cleanup.js
   var TransformHook = { beforeTransform: "beforeTransform", afterTransform: "afterTransform" };
   var DATE_PREFIX = /^\s*\d{1,2}\/\d{1,2}\/\d{4}\s*(?:[-–—]\s*)?/;
@@ -183,7 +201,9 @@ var CustomImportScript = (() => {
   }
 
   // tools/importer/import-press-release.js
-  var parsers = {};
+  var parsers = {
+    "press-release": parse
+  };
   var PAGE_TEMPLATE = {
     "name": "press-release",
     "description": "Single-column text article with article title heading followed by a rich-text body of paragraphs, optionally with bulleted lists and sub-sections; length varies",
@@ -316,7 +336,14 @@ var CustomImportScript = (() => {
       "https://www1.vhi.ie/session-expired",
       "https://www1.vhi.ie/site-maintenance"
     ],
-    "blocks": [],
+    "blocks": [
+      {
+        "name": "press-release",
+        "instances": [
+          ".text-shelf__wrapper"
+        ]
+      }
+    ],
     "sections": [
       {
         "id": "rc2",
@@ -326,7 +353,9 @@ var CustomImportScript = (() => {
           "#components"
         ],
         "style": null,
-        "blocks": [],
+        "blocks": [
+          "press-release"
+        ],
         "defaultContent": [
           ".text-shelf__wrapper > h2.text-shelf__article-title",
           ".text-shelf__wrapper > div.text-shelf__content"

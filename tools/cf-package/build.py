@@ -2,14 +2,16 @@
 """Build an AEM content package with the Press Release content fragment model and the
 Blue September 2015 article as a content fragment.
 
-Reads the imported article (content/about/media-releases-and-publications/2015/11.plain.html),
-splits it into the model's sections and writes an installable FileVault package to
-tools/cf-package/dist/.
+The fragment's field values live in tools/cf-package/fragments/blue-september-2015.json (the
+press release page itself now only references the fragment). parse_article() splits an imported
+press-release page into the model's sections and can be used to create data files for further
+releases. Writes an installable FileVault package to tools/cf-package/dist/.
 
   model:    /conf/vhi-ie/settings/dam/cfm/models/press-release
   fragment: /content/dam/vhi-ie/fragments/blue-september-2015
 """
 import html
+import json
 import re
 import zipfile
 from datetime import datetime
@@ -20,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE_HTML = ROOT / 'content/about/media-releases-and-publications/2015/11.plain.html'
 SOURCE_URL = 'https://www1.vhi.ie/about/media-releases-and-publications/2015/11'
 DIST = Path(__file__).resolve().parent / 'dist'
+FRAGMENT_DATA = Path(__file__).resolve().parent / 'fragments'
 
 CONF = '/conf/vhi-ie'
 MODEL_PATH = f'{CONF}/settings/dam/cfm/models/press-release'
@@ -106,9 +109,17 @@ def text_of(fragment):
     return html.unescape(re.sub(r'<[^>]+>', '', fragment)).strip()
 
 
-def parse_article():
+def load_fragment(name):
+    """Field values for a fragment from its data file (dates as YYYY-MM-DD)."""
+    data = json.loads((FRAGMENT_DATA / f'{name}.json').read_text(encoding='utf-8'))
+    if data.get('publicationDate'):
+        data['publicationDate'] = datetime.strptime(data['publicationDate'], '%Y-%m-%d')
+    return data
+
+
+def parse_article(source=SOURCE_HTML):
     parser = Collector()
-    parser.feed(SOURCE_HTML.read_text(encoding='utf-8'))
+    parser.feed(Path(source).read_text(encoding='utf-8'))
     blocks = [b for b in parser.blocks if text_of(b[1])]
 
     title = text_of(next(h for t, h in blocks if t == 'h1'))
@@ -264,14 +275,17 @@ def page_xml(title):
 '''
 
 
-def folder_xml(title, conf=None):
+def folder_xml(title, conf=None, allowed_models=()):
+    """Assets folder; jcr:content carries the cloud configuration and the folder policy
+    (Properties > Policies > Allowed Content Fragment Models by Path)."""
     conf_attr = f'\n        cq:conf="{conf}"' if conf else ''
+    models_attr = f'\n        cq:allowedTemplates="[{",".join(allowed_models)}]"' if allowed_models else ''
     return f'''<?xml version="1.0" encoding="UTF-8"?>
 <jcr:root {NS}
     jcr:primaryType="sling:Folder">
     <jcr:content
         jcr:primaryType="nt:unstructured"
-        jcr:title="{attr(title)}"{conf_attr}/>
+        jcr:title="{attr(title)}"{conf_attr}{models_attr}/>
 </jcr:root>
 '''
 
@@ -279,7 +293,8 @@ def folder_xml(title, conf=None):
 FILTER_XML = f'''<?xml version="1.0" encoding="UTF-8"?>
 <workspaceFilter version="1.0">
     <filter root="{MODEL_PATH}"/>
-    <filter root="{FRAGMENT_FOLDER}" mode="merge"/>
+    <filter root="{FRAGMENT_FOLDER}/jcr:content"/>
+    <filter root="{FRAGMENT_FOLDER}/{FRAGMENT_NAME}"/>
 </workspaceFilter>
 '''
 
@@ -288,7 +303,7 @@ PROPERTIES_XML = '''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <properties>
 <entry key="name">vhi-ie-press-release-cf</entry>
 <entry key="group">vhi-ie</entry>
-<entry key="version">1.1.0</entry>
+<entry key="version">1.2.0</entry>
 <entry key="description">Press Release content fragment model + Blue September 2015 press release fragment</entry>
 <entry key="requiresRoot">false</entry>
 <entry key="packageType">content</entry>
@@ -297,7 +312,7 @@ PROPERTIES_XML = '''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 
 
 def main():
-    article = parse_article()
+    article = load_fragment(FRAGMENT_NAME)
     files = {
         'META-INF/vault/filter.xml': FILTER_XML,
         'META-INF/vault/properties.xml': PROPERTIES_XML,
@@ -306,11 +321,11 @@ def main():
         'jcr_root/conf/vhi-ie/settings/dam/cfm/.content.xml': page_xml('Content Fragments'),
         'jcr_root/conf/vhi-ie/settings/dam/cfm/models/.content.xml': page_xml('Content Fragment Models'),
         f'jcr_root{MODEL_PATH}/.content.xml': model_xml(),
-        f'jcr_root{FRAGMENT_FOLDER}/.content.xml': folder_xml('Fragments', CONF),
+        f'jcr_root{FRAGMENT_FOLDER}/.content.xml': folder_xml('Fragments', CONF, [MODEL_PATH]),
         f'jcr_root{FRAGMENT_FOLDER}/{FRAGMENT_NAME}/.content.xml': fragment_xml(article),
     }
     DIST.mkdir(parents=True, exist_ok=True)
-    out = DIST / 'vhi-ie-press-release-cf-1.1.0.zip'
+    out = DIST / 'vhi-ie-press-release-cf-1.2.0.zip'
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         for name, body in files.items():
             z.writestr(name, body)

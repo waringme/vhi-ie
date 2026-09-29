@@ -234,7 +234,14 @@
       ],
       "coverageGaps": [],
       "description": "Single-column text article with article title heading followed by a rich-text body of paragraphs, optionally with bulleted lists and sub-sections; length varies",
-      "blocks": [],
+      "blocks": [
+        {
+          "name": "press-release",
+          "instances": [
+            ".text-shelf__wrapper"
+          ]
+        }
+      ],
       "sections": [
         {
           "id": "rc2",
@@ -244,7 +251,9 @@
             "#components"
           ],
           "style": null,
-          "blocks": [],
+          "blocks": [
+            "press-release"
+          ],
           "defaultContent": [
             ".text-shelf__wrapper > h2.text-shelf__article-title",
             ".text-shelf__wrapper > div.text-shelf__content"

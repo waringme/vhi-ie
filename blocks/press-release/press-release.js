@@ -30,7 +30,10 @@ async function fetchFragment(path) {
   const url = `${aemHost()}/api/assets${path.slice(DAM_ROOT.length)}.json`;
   const resp = await fetch(url, { credentials: aemHost() ? 'omit' : 'same-origin' });
   if (!resp.ok) throw new Error(`${resp.status} ${url}`);
-  const json = await resp.json();
+  const json = await resp.json().catch(() => {
+    throw new Error(`no JSON from ${url}`);
+  });
+  if (!json?.properties?.elements) throw new Error(`${url} is not a content fragment`);
   const elements = json?.properties?.elements || {};
   return Object.fromEntries(Object.entries(elements).map(([name, element]) => [name, element?.value ?? '']));
 }
@@ -104,6 +107,8 @@ export default async function decorate(block) {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error('press-release: could not load content fragment', e);
-    block.append(el('p', 'press-release-message', `Could not load content fragment ${path}.`));
+    // authors (on AEM / Universal Editor) get the reason; site visitors a short notice
+    const detail = aemHost() ? '' : ` (${e.message})`;
+    block.append(el('p', 'press-release-message', `Could not load content fragment ${path}${detail}.`));
   }
 }

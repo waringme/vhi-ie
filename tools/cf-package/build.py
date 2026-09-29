@@ -13,8 +13,9 @@ releases. Writes an installable FileVault package to tools/cf-package/dist/.
 import html
 import json
 import re
+import uuid
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -28,6 +29,11 @@ CONF = '/conf/vhi-ie'
 MODEL_PATH = f'{CONF}/settings/dam/cfm/models/press-release'
 FRAGMENT_FOLDER = '/content/dam/vhi-ie/fragments'
 FRAGMENT_NAME = 'blue-september-2015'
+FRAGMENT_PATH = f'{FRAGMENT_FOLDER}/{FRAGMENT_NAME}'
+# fragments are addressed by ID in the Content Fragment Editor / Sites API: keep it stable across builds
+FRAGMENT_UUID = str(uuid.uuid5(uuid.NAMESPACE_URL, f'aem:{FRAGMENT_PATH}'))
+BUILT = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+AUTHOR = 'admin'
 
 NS = ('xmlns:sling="http://sling.apache.org/jcr/sling/1.0" '
       'xmlns:cq="http://www.day.com/jcr/cq/1.0" '
@@ -190,6 +196,8 @@ def model_xml():
     allowedPaths="[/content/entities(/.*)?]"
     ranking="{{Long}}100">
     <jcr:content
+        cq:lastModified="{{Date}}{BUILT}"
+        cq:lastModifiedBy="{AUTHOR}"
         cq:scaffolding="{MODEL_PATH}/jcr:content/model"
         cq:templateType="/libs/settings/dam/cfm/model-types/fragment"
         jcr:primaryType="cq:PageContent"
@@ -232,8 +240,10 @@ def fragment_xml(article):
                 props.append(f'{name}="{{Date}}{value.strftime("%Y-%m-%dT00:00:00.000Z")}"')
             continue
         if meta == 'reference':
-            # asset path, e.g. /content/dam/vhi-ie/images/blue-september.jpg (empty until an author picks one)
-            props.append(f'{name}="{attr(value or "")}"')
+            # asset path, e.g. /content/dam/vhi-ie/images/blue-september.jpg; omitted until an author
+            # picks one (an empty string is not a valid reference)
+            if value:
+                props.append(f'{name}="{attr(value)}"')
             continue
         props.append(f'{name}="{attr(value or "")}"')
         props.append(f'{name}_x0040_ContentType="{"text/html" if meta == "text-multi" else "text/plain"}"')
@@ -241,10 +251,15 @@ def fragment_xml(article):
     title = attr(article['title'])
     return f'''<?xml version="1.0" encoding="UTF-8"?>
 <jcr:root {NS}
-    jcr:primaryType="dam:Asset">
+    jcr:primaryType="dam:Asset"
+    jcr:mixinTypes="[mix:referenceable]"
+    jcr:uuid="{FRAGMENT_UUID}">
     <jcr:content
         cq:name="{FRAGMENT_NAME}"
+        cq:parentPath="{FRAGMENT_FOLDER}"
         contentFragment="{{Boolean}}true"
+        jcr:lastModified="{{Date}}{BUILT}"
+        jcr:lastModifiedBy="{AUTHOR}"
         jcr:primaryType="dam:AssetContent"
         jcr:title="{title}"
         jcr:description="Vhi press release, {article['publicationDate'].strftime('%d %B %Y') if article['publicationDate'] else ''}">
@@ -303,7 +318,7 @@ PROPERTIES_XML = '''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <properties>
 <entry key="name">vhi-ie-press-release-cf</entry>
 <entry key="group">vhi-ie</entry>
-<entry key="version">1.2.0</entry>
+<entry key="version">1.3.0</entry>
 <entry key="description">Press Release content fragment model + Blue September 2015 press release fragment</entry>
 <entry key="requiresRoot">false</entry>
 <entry key="packageType">content</entry>
@@ -325,7 +340,7 @@ def main():
         f'jcr_root{FRAGMENT_FOLDER}/{FRAGMENT_NAME}/.content.xml': fragment_xml(article),
     }
     DIST.mkdir(parents=True, exist_ok=True)
-    out = DIST / 'vhi-ie-press-release-cf-1.2.0.zip'
+    out = DIST / 'vhi-ie-press-release-cf-1.3.0.zip'
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         for name, body in files.items():
             z.writestr(name, body)

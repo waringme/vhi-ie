@@ -12,7 +12,7 @@ import {
   getMetadata,
 } from './aem.js';
 
-const targetTimeoutMs = 1500;
+const targetTimeoutMs = 3000;
 let targetTimedOut = false;
 let resolveTargetOffers;
 const targetOffersPromise = new Promise((resolve) => {
@@ -20,6 +20,11 @@ const targetOffersPromise = new Promise((resolve) => {
 });
 
 function initATJS(path, config) {
+  const preconnect = document.createElement('link');
+  preconnect.rel = 'preconnect';
+  preconnect.href = `https://${config.serverDomain}`;
+  preconnect.crossOrigin = 'anonymous';
+  document.head.append(preconnect);
   window.targetGlobalSettings = config;
   return import(path);
 }

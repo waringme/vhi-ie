@@ -72,9 +72,8 @@ async function getAndApplyOffers() {
 const targetPagePath = '/about/media-releases-and-publications/2015/11';
 const isTargetPage = window.location.pathname.replace(/\/$/, '') === targetPagePath;
 const targetEnabled = getMetadata('target') || isTargetPage;
-let atjsPromise = Promise.resolve();
 if (targetEnabled) {
-  atjsPromise = initATJS('./at.fix.min.js', {
+  initATJS('./at.fix.min.js', {
     clientCode: 'adobeinternalags487',
     serverDomain: 'adobeinternalags487.tt.omtrdc.net',
     imsOrgId: '08FEAA655767BEDB7F000101@AdobeOrg',
@@ -84,6 +83,9 @@ if (targetEnabled) {
     secureOnly: true,
     viewsEnabled: false,
     withWebGLRenderer: false,
+  }).catch((error) => {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load Adobe Target', error);
   });
   document.addEventListener('at-library-loaded', getAndApplyOffers, { once: true });
 }
@@ -211,7 +213,6 @@ async function loadEager(doc) {
     decorateMain(main);
     document.body.classList.add('appear');
     if (targetEnabled) {
-      await atjsPromise;
       await new Promise((resolve) => {
         window.setTimeout(async () => {
           await loadSection(main.querySelector('.section'), waitForFirstImage);

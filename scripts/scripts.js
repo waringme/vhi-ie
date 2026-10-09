@@ -9,6 +9,7 @@ import {
   loadSection,
   loadSections,
   loadCSS,
+  getMetadata,
 } from './aem.js';
 
 function initATJS(path, config) {
@@ -70,9 +71,10 @@ async function getAndApplyOffers() {
 
 const targetPagePath = '/about/media-releases-and-publications/2015/11';
 const isTargetPage = window.location.pathname.replace(/\/$/, '') === targetPagePath;
+const targetEnabled = getMetadata('target') || isTargetPage;
 let atjsPromise = Promise.resolve();
-if (isTargetPage) {
-  atjsPromise = initATJS('./at.js', {
+if (targetEnabled) {
+  atjsPromise = initATJS('./at.fix.min.js', {
     clientCode: 'adobeinternalags487',
     serverDomain: 'adobeinternalags487.tt.omtrdc.net',
     imsOrgId: '08FEAA655767BEDB7F000101@AdobeOrg',
@@ -81,6 +83,7 @@ if (isTargetPage) {
     pageLoadEnabled: false,
     secureOnly: true,
     viewsEnabled: false,
+    withWebGLRenderer: false,
   });
   document.addEventListener('at-library-loaded', getAndApplyOffers, { once: true });
 }
@@ -207,7 +210,7 @@ async function loadEager(doc) {
   if (main) {
     decorateMain(main);
     document.body.classList.add('appear');
-    if (isTargetPage) {
+    if (targetEnabled) {
       await atjsPromise;
       await new Promise((resolve) => {
         window.setTimeout(async () => {

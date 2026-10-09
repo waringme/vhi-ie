@@ -12,31 +12,45 @@ import {
   getMetadata,
 } from './aem.js';
 
+const targetTimeoutMs = 1500;
+let targetTimedOut = false;
+let resolveTargetOffers;
+const targetOffersPromise = new Promise((resolve) => {
+  resolveTargetOffers = resolve;
+});
+
 function initATJS(path, config) {
   window.targetGlobalSettings = config;
   return import(path);
 }
 
 function onDecoratedElement(fn) {
-  if (document.querySelector('[data-block-status="loaded"],[data-section-status="loaded"]')) {
-    fn();
-    return;
-  }
+  return new Promise((resolve, reject) => {
+    let observer;
+    const apply = () => {
+      observer?.disconnect();
+      Promise.resolve().then(fn).then(resolve, reject);
+    };
 
-  const observer = new MutationObserver((mutations) => {
-    if (mutations.some((mutation) => mutation.target.tagName === 'BODY'
-      || mutation.target.dataset.sectionStatus === 'loaded'
-      || mutation.target.dataset.blockStatus === 'loaded')) {
-      observer.disconnect();
-      fn();
+    if (document.querySelector('[data-block-status="loaded"],[data-section-status="loaded"]')) {
+      apply();
+      return;
     }
+
+    observer = new MutationObserver((mutations) => {
+      if (mutations.some((mutation) => mutation.target.tagName === 'BODY'
+        || mutation.target.dataset.sectionStatus === 'loaded'
+        || mutation.target.dataset.blockStatus === 'loaded')) {
+        apply();
+      }
+    });
+    observer.observe(document.querySelector('main'), {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-block-status', 'data-section-status'],
+    });
+    observer.observe(document.querySelector('body'), { childList: true });
   });
-  observer.observe(document.querySelector('main'), {
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['data-block-status', 'data-section-status'],
-  });
-  observer.observe(document.querySelector('body'), { childList: true });
 }
 
 function toCssSelector(selector) {
@@ -56,17 +70,21 @@ function getElementForMetric(metric) {
 
 async function getAndApplyOffers() {
   const response = await window.adobe.target.getOffers({ request: { execute: { pageLoad: {} } } });
-  const { options = [], metrics = [] } = response?.execute?.pageLoad || {};
-  onDecoratedElement(() => {
-    window.adobe.target.applyOffers({ response });
-    options.forEach((option) => {
-      option.content = option.content.filter((offer) => !getElementForOffer(offer));
+  if (!targetTimedOut) {
+    const { options = [], metrics = [] } = response?.execute?.pageLoad || {};
+    await onDecoratedElement(async () => {
+      if (!targetTimedOut) {
+        await window.adobe.target.applyOffers({ response });
+        options.forEach((option) => {
+          option.content = option.content.filter((offer) => !getElementForOffer(offer));
+        });
+        metrics.map((metric, index) => (getElementForMetric(metric) ? index : -1))
+          .filter((index) => index >= 0)
+          .reverse()
+          .forEach((index) => metrics.splice(index, 1));
+      }
     });
-    metrics.map((metric, index) => (getElementForMetric(metric) ? index : -1))
-      .filter((index) => index >= 0)
-      .reverse()
-      .forEach((index) => metrics.splice(index, 1));
-  });
+  }
 }
 
 const targetPagePath = '/about/media-releases-and-publications/2015/11';
@@ -83,11 +101,18 @@ if (targetEnabled) {
     secureOnly: true,
     viewsEnabled: false,
     withWebGLRenderer: false,
+    timeout: targetTimeoutMs,
   }).catch((error) => {
     // eslint-disable-next-line no-console
     console.error('Failed to load Adobe Target', error);
+    resolveTargetOffers();
   });
-  document.addEventListener('at-library-loaded', getAndApplyOffers, { once: true });
+  document.addEventListener('at-library-loaded', () => {
+    getAndApplyOffers().catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error('Failed to apply Adobe Target offers', error);
+    }).finally(resolveTargetOffers);
+  }, { once: true });
 }
 
 /**
@@ -211,12 +236,31 @@ async function loadEager(doc) {
   const main = doc.querySelector('main');
   if (main) {
     decorateMain(main);
+    if (targetEnabled) main.style.visibility = 'hidden';
     document.body.classList.add('appear');
     if (targetEnabled) {
       await new Promise((resolve) => {
         window.setTimeout(async () => {
-          await loadSection(main.querySelector('.section'), waitForFirstImage);
-          resolve();
+          let timeoutId;
+          try {
+            await loadSection(main.querySelector('.section'), waitForFirstImage);
+            await Promise.race([
+              targetOffersPromise,
+              new Promise((resolveOffers) => {
+                timeoutId = window.setTimeout(() => {
+                  targetTimedOut = true;
+                  resolveOffers();
+                }, targetTimeoutMs);
+              }),
+            ]);
+          } catch (error) {
+            // eslint-disable-next-line no-console
+            console.error('Failed to load the Target page section', error);
+          } finally {
+            window.clearTimeout(timeoutId);
+            main.style.visibility = '';
+            resolve();
+          }
         }, 0);
       });
     } else {

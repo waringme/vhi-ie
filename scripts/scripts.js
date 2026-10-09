@@ -11,6 +11,80 @@ import {
   loadCSS,
 } from './aem.js';
 
+function initATJS(path, config) {
+  window.targetGlobalSettings = config;
+  return import(path);
+}
+
+function onDecoratedElement(fn) {
+  if (document.querySelector('[data-block-status="loaded"],[data-section-status="loaded"]')) {
+    fn();
+    return;
+  }
+
+  const observer = new MutationObserver((mutations) => {
+    if (mutations.some((mutation) => mutation.target.tagName === 'BODY'
+      || mutation.target.dataset.sectionStatus === 'loaded'
+      || mutation.target.dataset.blockStatus === 'loaded')) {
+      observer.disconnect();
+      fn();
+    }
+  });
+  observer.observe(document.querySelector('main'), {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['data-block-status', 'data-section-status'],
+  });
+  observer.observe(document.querySelector('body'), { childList: true });
+}
+
+function toCssSelector(selector) {
+  return selector.replace(/(\.\S+)?:eq\((\d+)\)/g, (_, className, index) => {
+    const nthChild = `:nth-child(${Number(index) + 1}`;
+    return `${nthChild}${className ? ` of ${className}` : ''})`;
+  });
+}
+
+function getElementForOffer(offer) {
+  return document.querySelector(offer.cssSelector || toCssSelector(offer.selector));
+}
+
+function getElementForMetric(metric) {
+  return document.querySelector(toCssSelector(metric.selector));
+}
+
+async function getAndApplyOffers() {
+  const response = await window.adobe.target.getOffers({ request: { execute: { pageLoad: {} } } });
+  const { options = [], metrics = [] } = response?.execute?.pageLoad || {};
+  onDecoratedElement(() => {
+    window.adobe.target.applyOffers({ response });
+    options.forEach((option) => {
+      option.content = option.content.filter((offer) => !getElementForOffer(offer));
+    });
+    metrics.map((metric, index) => (getElementForMetric(metric) ? index : -1))
+      .filter((index) => index >= 0)
+      .reverse()
+      .forEach((index) => metrics.splice(index, 1));
+  });
+}
+
+const targetPagePath = '/about/media-releases-and-publications/2015/11';
+const isTargetPage = window.location.pathname.replace(/\/$/, '') === targetPagePath;
+let atjsPromise = Promise.resolve();
+if (isTargetPage) {
+  atjsPromise = initATJS('./at.js', {
+    clientCode: 'adobeinternalags487',
+    serverDomain: 'adobeinternalags487.tt.omtrdc.net',
+    imsOrgId: '08FEAA655767BEDB7F000101@AdobeOrg',
+    bodyHidingEnabled: false,
+    cookieDomain: window.location.hostname,
+    pageLoadEnabled: false,
+    secureOnly: true,
+    viewsEnabled: false,
+  });
+  document.addEventListener('at-library-loaded', getAndApplyOffers, { once: true });
+}
+
 /**
  * Moves all the attributes from a given elmenet to another given element.
  * @param {Element} from the element to copy attributes from
@@ -133,7 +207,17 @@ async function loadEager(doc) {
   if (main) {
     decorateMain(main);
     document.body.classList.add('appear');
-    await loadSection(main.querySelector('.section'), waitForFirstImage);
+    if (isTargetPage) {
+      await atjsPromise;
+      await new Promise((resolve) => {
+        window.setTimeout(async () => {
+          await loadSection(main.querySelector('.section'), waitForFirstImage);
+          resolve();
+        }, 0);
+      });
+    } else {
+      await loadSection(main.querySelector('.section'), waitForFirstImage);
+    }
   }
 
   try {

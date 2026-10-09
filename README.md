@@ -13,7 +13,7 @@ Before using the aem-boilerplate, we recommend you to go through the documentati
 3. [Component Model Definitions](https://www.aem.live/developer/component-model-definitions)
 4. [Authoring Path Mapping](https://www.aem.live/developer/authoring-path-mapping)
 
-## Prerequisites
+## Prerequisites ---
 
 - nodejs 20 or newer
 - AEM Cloud Service release 2026.4 or newer
